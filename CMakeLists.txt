@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(Boost REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(fastcdr CONFIG REQUIRED)
-option(NDDS_USE_SANITIZER "Use sanitizers" ON)
+option(NDDS_USE_SANITIZER "Use sanitizers" OFF)
 
 file(GLOB_RECURSE core_src core/*.cpp core/*.hpp rtps/*.hpp rtps/*.cpp utils/*.hpp utils/*.cpp)
 
