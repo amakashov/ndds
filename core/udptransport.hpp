@@ -16,7 +16,7 @@ namespace Core
     {
         using ReceiveCallback = std::function<void(const boost::asio::ip::udp::endpoint&, const std::vector<uint8_t>&)>;
     public:
-        UdpTransport(boost::asio::io_context& io_context, uint16_t local_port);
+        UdpTransport(boost::asio::io_context& io_context, uint16_t local_port, uint16_t multicast_port = 7400);
         void SetHandle(ReceiveCallback callback) {m_receive_callback = std::move(callback);}
         void SetMulticastHandle(ReceiveCallback callback) {m_multicast_callback = std::move(callback);}
 
@@ -25,7 +25,7 @@ namespace Core
         void Send(const std::string& remote_ip, uint16_t remote_port, const std::vector<uint8_t>& data);
         void SendMulticast(std::vector<uint8_t> const & data);
  
-        void JoinMulticastGroup(const std::string& multicast_ip);
+        bool JoinMulticastGroup(const std::string& multicast_ip);
 
     protected:
 
@@ -34,7 +34,7 @@ namespace Core
 
         boost::asio::io_context& m_io_context;
         uint16_t m_local_port;
-        uint16_t const m_multicast_port = 7400;
+        uint16_t m_multicast_port = 7400;
         boost::asio::ip::udp::socket m_unicast_socket;
         boost::asio::ip::udp::socket m_multicast_socket;
         boost::asio::ip::udp::endpoint m_remote_endpoint;

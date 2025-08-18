@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "core/udptransport.hpp"
 #include "utils/configparser.hpp"
 #include "core/rtpsparticipant.hpp"
 #include <boost/asio/executor_work_guard.hpp>
@@ -70,14 +71,25 @@ int main(int, char**)
 
     
     boost::asio::io_context io_context;
-    // Core::RtpsParticipant partnt(io_context, 1);
+    Core::RtpsParticipant partnt(io_context, 0, 1);
+    partnt.JoinMulticastGroup("239.100.0.1");
+
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> guard 
+            = boost::asio::make_work_guard(io_context);
+
+    boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
+    signals.async_wait([&](const boost::system::error_code&, int){
+        std::cout << "\nSignal received, shutting down...\n";
+        io_context.stop();
+    });
     
     cout << "Startin UdpTransport part" << endl;
 
-    Core::UdpTransport udp1(io_context, 56789);
-    Core::UdpTransport udp2(io_context, 56788);
-    udp1.JoinMulticastGroup("239.100.0.1");
-    udp2.JoinMulticastGroup("239.100.0.1");
+    shared_ptr<Core::UdpTransport> udp1 = make_shared<Core::UdpTransport>(io_context, 56789);
+    shared_ptr<Core::UdpTransport> udp2 = make_shared<Core::UdpTransport>(io_context, 56788);
+
+    udp1->JoinMulticastGroup("239.100.0.1");
+    udp2->JoinMulticastGroup("239.100.0.1");
     string str1 = "Message from first socket";
     string str2 = "Message from second socket";
     auto multi_callback = [](const boost::asio::ip::udp::endpoint& ep, const std::vector<uint8_t>& data)
@@ -87,22 +99,26 @@ int main(int, char**)
             cout << v << " ";
         cout << endl;
     };
-    udp1.SetMulticastHandle(multi_callback);
-    udp2.SetMulticastHandle(multi_callback);
-    auto buf1 = std::vector<uint8_t>(str1.begin(), str1.end());
-    auto buf2 = std::vector<uint8_t>(str2.begin(), str2.end());
-
-    udp1.SendMulticast(buf1);
-    udp2.SendMulticast(buf2);
 
     std::thread th1([&]()
     {
-        boost::asio::executor_work_guard<boost::asio::io_context::executor_type> guard 
-            = boost::asio::make_work_guard(io_context);
-
         io_context.run();
     });
+
+    udp1->SetMulticastHandle(multi_callback);
+    udp2->SetMulticastHandle(multi_callback);
+    auto buf1 = std::vector<uint8_t>(str1.begin(), str1.end());
+    auto buf2 = std::vector<uint8_t>(str2.begin(), str2.end());
+
+    udp1->SendMulticast(buf1);
+    udp2->SendMulticast(buf2);
+
+
     th1.join();
+    udp1->StopReceiving();
+    udp2->StopReceiving();
+    partnt.Shutdown();
+    guard.reset();
 
     return 0;
 }

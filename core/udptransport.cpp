@@ -7,8 +7,9 @@ namespace bip = boost::asio::ip;
 
 namespace Core
 {
-    UdpTransport::UdpTransport(boost::asio::io_context& context, uint16_t port)
-        : m_io_context(context), m_local_port(port), m_multicast_socket(m_io_context), 
+    UdpTransport::UdpTransport(boost::asio::io_context& context, uint16_t local_port, uint16_t multicast_port)
+        : m_io_context(context), m_local_port(local_port), m_multicast_port(multicast_port),
+        m_multicast_socket(m_io_context), 
         m_unicast_socket(m_io_context, bip::udp::endpoint(bip::udp::v4(), m_local_port)) 
     { 
 
@@ -43,7 +44,7 @@ namespace Core
             });
     }
 
-    void UdpTransport::JoinMulticastGroup(const std::string& multicast_ip)
+    bool UdpTransport::JoinMulticastGroup(const std::string& multicast_ip)
     {
         try
         {
@@ -57,51 +58,52 @@ namespace Core
             m_multicast_socket.set_option(bip::multicast::join_group(m_multicast_endpoint.address()));
             m_multicast_socket.set_option(bip::multicast::enable_loopback(true));
             doMulticastReceive();
+            return true;
         }
         catch(const std::exception& e)
         {
             std::cerr <<"Multicast trouble " << e.what() << '\n';
+            return false;
         }
     }
 
     void UdpTransport::doReceive()
     {
-        // auto self = shared_from_this();
+        auto self = shared_from_this();
         m_unicast_socket.async_receive_from(
             boost::asio::buffer(m_buffer), m_remote_endpoint,
-            [this](boost::system::error_code ec, std::size_t bytes_recvd)
+            [self](boost::system::error_code ec, std::size_t bytes_recvd)
             {
                 if (!ec)
                 {
-                    std::vector<uint8_t> data(this->m_buffer.data(), this->m_buffer.data() + bytes_recvd);
-                    this->m_receive_callback(this->m_remote_endpoint, data);
+                    std::vector<uint8_t> data(self->m_buffer.data(), self->m_buffer.data() + bytes_recvd);
+                    self->m_receive_callback(self->m_remote_endpoint, data);
                 }
                 else 
                 {
                     std::cerr << "Receive error: " << ec.message() << std::endl;
                 }
-                this->doReceive();
+                self->doReceive();
             });
     }
 
     void UdpTransport::doMulticastReceive()
     {
-        std::cout << "In Multicast\n";
-        // auto self = shared_from_this();
+        auto self = shared_from_this();
         m_multicast_socket.async_receive_from(
             boost::asio::buffer(m_buffer), m_remote_endpoint,
-            [this](boost::system::error_code ec, std::size_t bytes_recvd)
+            [self](boost::system::error_code ec, std::size_t bytes_recvd)
             {
                 if (!ec)
                 {
-                    std::vector<uint8_t> data(this->m_buffer.data(), this->m_buffer.data() + bytes_recvd);
-                    this->m_multicast_callback(this->m_multicast_endpoint, data);
+                    std::vector<uint8_t> data(self->m_buffer.data(), self->m_buffer.data() + bytes_recvd);
+                    self->m_multicast_callback(self->m_multicast_endpoint, data);
                 }
                 else 
                 {
                     std::cerr << "Multicast error: " << ec.message() << std::endl;
                 }
-                this->doMulticastReceive();
+                self->doMulticastReceive();
             });
     }
 

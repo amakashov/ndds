@@ -104,5 +104,6 @@
         "xtree": "cpp",
         "xutility": "cpp"
     },
-    "CodeGPT.apiKey": "Ollama"
+    "CodeGPT.apiKey": "Ollama",
+    "sarif-viewer.connectToGithubCodeScanning": "off"
 }
