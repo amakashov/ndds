@@ -9,8 +9,8 @@ RtpsParticipant::RtpsParticipant(boost::asio::io_context &io_context, uint16_t d
     m_udp_transport(std::make_shared<Core::UdpTransport>(m_io_context, 
         GetLocalPortById(m_domain_id, m_participant_id), GetMulticastPortById(m_domain_id))) 
     {
-        m_guid = generateGuid();
-        std::cout << guidToString(m_guid.prefix) << std::endl;
+        m_guid = GenerateGuid();
+        std::cout << GuidToString(m_guid.prefix) << std::endl;
     }   
 
     bool RtpsParticipant::JoinMulticastGroup(std::string const & ip)
@@ -56,4 +56,61 @@ RtpsParticipant::RtpsParticipant(boost::asio::io_context &io_context, uint16_t d
             m_udp_transport->StopReceiving();
         }
     }
-}
+    RtpsParticipant::Guid RtpsParticipant::GenerateGuid() 
+    {
+        Guid g;
+        std::random_device rd;
+        for (auto &b : g.prefix)
+            b = rd() & 0xFF;
+        g.entity_id = 0x000001c1;
+        return g;
+    }
+    std::string RtpsParticipant::GuidToString(const std::array<uint8_t, 12> &prefix) 
+    {
+        std::ostringstream oss;
+        oss << std::setw(2) << std::setfill('0');
+        for (size_t i = 0; i < prefix.size(); i++) 
+        {
+            oss << std::hex << (int)prefix[i];
+            if (i != prefix.size() - 1)
+              oss << ":";
+        }
+        return oss.str();
+    }
+    bool
+    RtpsParticipant::AddParticipant(std::array<uint8_t, 12> const &guid_prefix,
+                                    std::string const &name,
+                                    uint32_t builtin_endpoints) 
+    {
+        auto it = m_participants.find(guid_prefix);
+        if (it != m_participants.end()) 
+        {
+            it->second.name = name;
+            it->second.builtin_endpoints = builtin_endpoints;
+            it->second.last_seen = std::chrono::steady_clock::now();
+            return true;
+        } 
+        else 
+        {
+            DiscoveredParticipant dp{guid_prefix, name, builtin_endpoints,
+                                     std::chrono::steady_clock::now()};
+            m_participants[guid_prefix] = dp;
+            return false;
+        }
+    }
+    
+    bool RtpsParticipant::UpdateParticipant(
+        std::array<uint8_t, 12> const &guid_prefix, std::string const &name,
+        uint32_t builtin_endpoints) 
+    {
+        auto it = m_participants.find(guid_prefix);
+        if (it != m_participants.end()) 
+        {
+            it->second.name = name;
+            it->second.builtin_endpoints = builtin_endpoints;
+            it->second.last_seen = std::chrono::steady_clock::now();
+            return true;
+        }
+        return false;
+    }
+    } // namespace Core

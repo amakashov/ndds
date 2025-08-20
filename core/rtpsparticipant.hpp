@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <memory>
 #include <unordered_map>
+#include <map>
 
 namespace Core
 { 
@@ -44,28 +45,17 @@ protected:
         uint32_t entity_id;
     };
 
-    Guid generateGuid() 
-    {
-        Guid g;
-        std::random_device rd;
-        for (auto &b : g.prefix)
-         b = rd() & 0xFF;
-        g.entity_id = 0x000001c1;
-        return g;
-    }
+    Guid GenerateGuid();
 
-    std::string guidToString(const std::array<uint8_t, 12>& prefix) {
-        std::ostringstream oss;
-        oss<< std::setw(2) << std::setfill('0');
-        for (size_t i = 0; i < prefix.size(); i++) 
-        {
-            oss << std::hex << (int)prefix[i];
-            if (i != prefix.size()-1) oss << ":";
-        }
-        return oss.str();
-    }
-    
+    std::string GuidToString(const std::array<uint8_t, 12> &prefix);
+
     std::vector<uint8_t> buildSpdpPacket();
+
+    bool AddParticipant(std::array<uint8_t, 12> const &guid_prefix,
+                        std::string const &name, uint32_t builtin_endpoints);
+
+    bool UpdateParticipant(std::array<uint8_t, 12> const &guid_prefix,
+                           std::string const &name, uint32_t builtin_endpoints);
 
     boost::asio::io_context& m_io_context;
     Guid m_guid;
@@ -74,7 +64,7 @@ protected:
     std::shared_ptr<Core::UdpTransport> m_udp_transport;
     std::shared_ptr<boost::asio::steady_timer> m_spdp_timer;
 
-    std::unordered_map<std::string, DiscoveredParticipant> m_participants;
+    std::map<std::array<uint8_t, 12>, DiscoveredParticipant> m_participants;
 
     ProtocolVersionType version;
     LocatorType m_default_unicast_locator, m_default_multicast_locator;
