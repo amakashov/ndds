@@ -7,24 +7,19 @@ namespace Core
 RtpsParticipant::RtpsParticipant(boost::asio::io_context &io_context, uint16_t domainId, uint16_t participantId)
     : m_io_context(io_context), m_domain_id(domainId), m_participant_id(participantId),
     m_udp_transport(std::make_shared<Core::UdpTransport>(m_io_context, 
-        GetLocalPortById(m_domain_id, m_participant_id), GetMulticastPortById(m_domain_id))) 
+        GetLocalPortById(m_domain_id, m_participant_id), GetMulticastPortById(m_domain_id)))
     {
         m_guid = GenerateGuid();
-        std::cout << GuidToString(m_guid.prefix) << std::endl;
+        std::cout << "RTPS Participant " << m_participant_id <<" GUID: "<< GuidToString(m_guid.prefix) << std::endl;
+        m_udp_transport->SetHandle(std::bind(&RtpsParticipant::onUnicastReceive, this, std::placeholders::_1, std::placeholders::_2));
     }   
 
     bool RtpsParticipant::JoinMulticastGroup(std::string const & ip)
     {
         if (m_udp_transport)
         {
-            auto callback = [](const boost::asio::ip::udp::endpoint& ep, const std::vector<uint8_t>& buff) 
-            {
-                std::cout << "From " << ep.address().to_string() << ":" << ep.port() << " received ";
-                for (auto v : buff)
-                    std::cout << v << " ";
-                std::cout << std::endl;
-            };
-            m_udp_transport->SetMulticastHandle(callback);
+            auto bind_callback = std::bind(&RtpsParticipant::onMulticastReceive, this, std::placeholders::_1, std::placeholders::_2);
+            m_udp_transport->SetMulticastHandle(bind_callback);
             return  m_udp_transport->JoinMulticastGroup(ip);
         }
         else return false;
@@ -38,12 +33,12 @@ RtpsParticipant::RtpsParticipant(boost::asio::io_context &io_context, uint16_t d
     std::vector<uint8_t> RtpsParticipant::buildSpdpPacket()
     {
         std::vector<uint8_t> packet{'R','T','P','S'};
-        packet.push_back((static_cast<uint16_t>(version) >> 8) & 0xFF);
-        packet.push_back(static_cast<uint16_t>(version) & 0xFF);
+        // packet.push_back((static_cast<uint16_t>(version) >> 8) & 0xFF);
+        // packet.push_back(static_cast<uint16_t>(version) & 0xFF);
         //      TODO Здесь должен быть vendorID, и его надо бы сделать константой
-        packet.push_back(0);
-        packet.push_back(0);
-        packet.insert(packet.end(), m_guid.prefix.begin(), m_guid.prefix.end());
+        // packet.push_back(0);
+        // packet.push_back(0);
+        // packet.insert(packet.end(), m_guid.prefix.begin(), m_guid.prefix.end());
 
         return packet;
 
@@ -77,10 +72,10 @@ RtpsParticipant::RtpsParticipant(boost::asio::io_context &io_context, uint16_t d
         }
         return oss.str();
     }
-    bool
-    RtpsParticipant::AddParticipant(std::array<uint8_t, 12> const &guid_prefix,
-                                    std::string const &name,
-                                    uint32_t builtin_endpoints) 
+
+    bool RtpsParticipant::AddParticipant(std::array<uint8_t, 12> const &guid_prefix,
+                                         std::string const &name,
+                                         uint32_t builtin_endpoints) 
     {
         auto it = m_participants.find(guid_prefix);
         if (it != m_participants.end()) 
@@ -112,5 +107,49 @@ RtpsParticipant::RtpsParticipant(boost::asio::io_context &io_context, uint16_t d
             return true;
         }
         return false;
+    }
+    void RtpsParticipant::onMulticastReceive(const boost::asio::ip::udp::endpoint &ep, const std::vector<uint8_t> &data) 
+    {
+        auto data_str = std::string(data.begin(), data.end());
+        std::cout << "Participant " <<  m_participant_id <<" multicast from " << ep.address().to_string() << ":" << ep.port() << " received ";
+        for (auto v : data_str)
+            std::cout << v << " ";
+        std::cout << std::endl;
+    }
+    void RtpsParticipant::onUnicastReceive(const boost::asio::ip::udp::endpoint &ep, const std::vector<uint8_t> &data) 
+    {
+        std::cout << "Unicast from " << ep.address().to_string() << ":" << ep.port() << " received ";
+        for (auto v : data)
+            std::cout << v << " ";
+        std::cout << std::endl;
+    }
+    void RtpsParticipant::SendSpdpMessage() 
+    {
+        // auto packet = buildSpdpPacket();
+        // m_spdp_message = std::vector<uint8_t>{'S','P','D','P'};
+        std::vector<uint8_t> packet {'S','P','D','P'};
+        if (m_udp_transport) 
+        {
+            m_udp_transport->SendMulticast(packet);
+        }
+    }
+    void RtpsParticipant::SchedulePeriodicSpdpMessages() 
+    {
+        SendSpdpMessage();
+        // m_spdp_timer_instance.expires_after(m_spdp_interval);
+        // m_spdp_timer_instance.async_wait([this](const boost::system::error_code& ec) 
+        // {
+        //     if (!ec) 
+        //     {
+        //         SchedulePeriodicSpdpMessages();
+        //     }
+        // });
+    }
+    void RtpsParticipant::SendMulticast(std::vector<uint8_t> const &buffer) 
+    {
+        if (m_udp_transport)
+        {
+            m_udp_transport->SendMulticast(buffer);
+        }
     }
     } // namespace Core

@@ -34,8 +34,10 @@ namespace Core
     
     void UdpTransport::SendMulticast(const std::vector<uint8_t>& data)
     {
-        m_multicast_socket.async_send_to(boost::asio::buffer(data), m_multicast_endpoint, 
-            [this](const boost::system::error_code& ec, size_t bytes_transferred) 
+        auto self = shared_from_this();
+        auto buff = boost::asio::buffer(data);
+        m_multicast_socket.async_send_to(buff, m_multicast_endpoint, 
+            [self](const boost::system::error_code& ec, size_t bytes_transferred) 
             {
                 if (ec)
                 {
